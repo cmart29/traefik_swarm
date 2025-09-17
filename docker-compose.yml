@@ -27,6 +27,7 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock:ro   # Swarm API socket
       - /traefik/certs:/certs:ro
       - /traefik/docker/dynamic:/dynamic:ro
+      - acme_storage:/letsencrypt
 
     # Traefik Static configuration via command-line arguments
     command:
@@ -112,3 +113,6 @@ services:
 networks:
   traefik_proxy:
     external: true
+
+volumes:
+  acme_storage:
