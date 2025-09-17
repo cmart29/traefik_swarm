@@ -10,7 +10,7 @@ services:
         # Enable Service discovery for Traefik
         - "traefik.enable=true"
         # Define the WHoami router rule
-        - "traefik.http.routers.nginx.rule=Host(`nginx.uat.chrismart.co.uk`)"
+        - "traefik.http.routers.nginx.rule=Host(`www.chrismart.co.uk`)"
         # Expose Whoami on the HTTPS entrypoint
         - "traefik.http.routers.nginx.entrypoints=websecure"
         # Enable TLS
