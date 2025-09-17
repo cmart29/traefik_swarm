@@ -27,7 +27,6 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock:ro   # Swarm API socket
       - /traefik/certs:/certs:ro
       - /traefik/docker/dynamic:/dynamic:ro
-      - acme_storage:/letsencrypt
 
     # Traefik Static configuration via command-line arguments
     command:
@@ -42,12 +41,6 @@ services:
       # HTTPS EntryPoint
       - "--entrypoints.websecure.address=:443"
       - "--entrypoints.websecure.http.tls=true"
-
-      # Let's encrypt
-      - "--certificatesresolvers.le.acme.email=c.mart@outlook.com"
-      - "--certificatesresolvers.le.acme.storage=/letsencrypt/acme.json"
-      - "--certificatesresolvers.le.acme.httpchallenge.entrypoint=web"
-      - "--entrypoints.websecure.http.tls.certresolver=le"
 
       # Attach dynamic TLS file
       - "--providers.file.filename=/dynamic/tls.yaml"
@@ -113,6 +106,3 @@ services:
 networks:
   traefik_proxy:
     external: true
-
-volumes:
-  acme_storage:
