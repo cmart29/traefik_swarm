@@ -1,4 +1,80 @@
+configs:
+  logstash.conf:
+    file: /traefik/docker/logstash.conf
+  filebeat.yml:
+    file: /traefik/docker/filebeat.yml
+
+volumes:
+  filebeat-data:
+  elastic-data:
+
 services:
+  filebeat:
+    image: elastic/filebeat:7.17.3
+    environment:
+      - HN=${HOSTNAME}
+            #placement:
+              #constraints: [node.role == worker]
+    configs:
+      - source: filebeat.yml
+        target: /usr/share/filebeat/filebeat.yml
+    user: 0:0
+    networks:
+      - logging-net
+    volumes:
+      - /var/lib/docker/containers/:/var/lib/docker/containers/:RO
+      - /var/run/docker.sock:/var/run/docker.sock
+      - filebeat-data:/usr/share/filebeat/data/
+      - /var/log/:/var/log/:ro
+  elasticsearch:
+    image: elasticsearch:7.17.3
+    environment:
+      - node.name=docker-logging
+      - cluster.name=docker-logging
+      - bootstrap.memory_lock=true
+      - discovery.type=single-node
+      - ES_JAVA_OPTS=-Xms256m -Xmx256m
+    deploy:
+            #placement:
+            #constraints: [node.role == worker]
+    networks:
+      - logging-net
+    volumes:
+      - elastic-data:/usr/share/elasticsearch/data/
+  kibana:
+    image: kibana:7.17.3
+    ports:
+      - "5601:5601"
+    environment:
+      - SERVER_NAME=docker-logging
+      - ELASTICSEARCH_HOSTS="http://elasticsearch:9200"
+    networks:
+      - logging-net
+      - traefik_proxy
+    deploy:
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.kibana.rule=Host(`logs.chrismart.co.uk`)"
+        - "traefik.http.routers.kibana.entrypoints=websecure"
+        - "traefik.http.routers.kibana.tls=true"
+        - traefik.http.services.kibana.loadbalancer.server.port=5601
+  logstash:
+    image: logstash:7.17.3
+    environment:
+      - 'path.config=/usr/share/logstash/conf/logstash.conf'
+      - 'xpack.monitoring.elasticsearch.url=elasticsearch'
+      - 'xpack.monitoring.enabled=false'
+      - 'xpack.monitoring.elasticsearch.username='
+      - 'xpack.monitoring.elasticsearch.password='
+      - 'TZ=Europe/London'
+    configs:
+      - source: logstash.conf
+        target: /usr/share/logstash/conf/logstash.conf
+    deploy:
+            #placement:
+            #constraints: [node.role == worker]
+    networks:
+      - logging-net
   traefik:
     image: traefik:v3.4
 
@@ -30,6 +106,8 @@ services:
 
     # Traefik Static configuration via command-line arguments
     command:
+      # Metrics
+      #- "--metrics.prometheus.entryPoint=websecure"
       # HTTP EntryPoint
       - "--entrypoints.web.address=:80"
 
@@ -89,7 +167,7 @@ services:
         - "traefik.http.middlewares.my-fail2ban.plugin.fail2ban.rules.maxretry=4"
 
         # Dashboard router
-        - "traefik.http.routers.dashboard.rule=Host(`web.domain`)"
+        - "traefik.http.routers.dashboard.rule=Host(`portal.chrismart.co.uk`)"
         - "traefik.http.routers.dashboard.entrypoints=websecure"
         - "traefik.http.routers.dashboard.service=api@internal"
         - "traefik.http.routers.dashboard.tls=true"
@@ -104,5 +182,6 @@ services:
 
 # Define the overlay network for Swarm
 networks:
+  logging-net:
   traefik_proxy:
     external: true
