@@ -1,5 +1,5 @@
 # dynamic/tls.yaml
 tls:
   certificates:
-    - certFile: /certs/ansibleorigin.pem
-      keyFile:  /certs/ansibleorigin.key
+    - certFile: /certs/origin.pem
+      keyFile:  /certs/origin.key
