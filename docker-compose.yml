@@ -7,8 +7,52 @@ configs:
 volumes:
   filebeat-data:
   elastic-data:
+  portainer-data:
 
 services:
+  agent:
+    image: portainer/agent:lts
+    environment:
+      # REQUIRED: Should be equal to the service name prefixed by "tasks." when
+      # deployed inside an overlay network
+      AGENT_CLUSTER_ADDR: tasks.agent
+      # AGENT_PORT: 9001
+      # LOG_LEVEL: debug
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /var/lib/docker/volumes:/var/lib/docker/volumes
+    networks:
+      - agent_network
+    deploy:
+      mode: global
+      placement:
+        constraints: [node.platform.os == linux]
+
+  portainer:
+    image: portainer/portainer-ce:lts
+    command: -H tcp://tasks.agent:9001 --tlsskipverify
+    volumes:
+      - portainer-data:/data
+    networks:
+      - public
+      - agent_network
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints: [node.role == manager]
+      labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.portainer.rule=Host(`portainer.chrismart.co.uk`)"
+      - "traefik.http.routers.portainer.entrypoints=websecure"
+      - "traefik.http.services.portainer.loadbalancer.server.port=9000"
+      - "traefik.http.routers.portainer.service=portainer"
+      - "traefik.http.routers.portainer.tls=true"
+      # Edge
+      #- "traefik.http.routers.edge.rule=Host(`edge.yourdomain.com`)"
+      #- "traefik.http.routers.edge.entrypoints=web"
+      #- "traefik.http.services.edge.loadbalancer.server.port=8000"
+      #- "traefik.http.routers.edge.service=edge"
   filebeat:
     image: elastic/filebeat:7.17.3
     environment:
@@ -182,6 +226,7 @@ services:
 
 # Define the overlay network for Swarm
 networks:
+  agent_network:
   logging-net:
   traefik_proxy:
     external: true
