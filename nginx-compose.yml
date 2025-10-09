@@ -9,6 +9,9 @@ services:
     image: nginx:latest
     networks: 
       - traefik_proxy
+    configs:
+      - source: index.html
+        target: /usr/share/nginx/html/index.html
     deploy:
       labels:
         # Enable Service discovery for Traefik
