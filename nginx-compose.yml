@@ -1,5 +1,9 @@
 version: "3.8"
 
+configs:
+  index.html:
+    file: /usr/share/nginx/html/index.html
+
 services:
   nginx:
     image: nginx:latest
