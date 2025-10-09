@@ -34,8 +34,8 @@ services:
     volumes:
       - portainer-data:/data
     networks:
-      - public
       - agent_network
+      - traefik_proxy
     deploy:
       mode: replicated
       replicas: 1
