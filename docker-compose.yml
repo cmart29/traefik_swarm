@@ -1,8 +1,4 @@
-configs:
-  logstash.conf:
-    file: /traefik/docker/logstash.conf
-  filebeat.yml:
-    file: /traefik/docker/filebeat.yml
+version: '3.9'
 
 volumes:
   filebeat-data:
@@ -13,11 +9,7 @@ services:
   agent:
     image: portainer/agent:lts
     environment:
-      # REQUIRED: Should be equal to the service name prefixed by "tasks." when
-      # deployed inside an overlay network
       AGENT_CLUSTER_ADDR: tasks.agent
-      # AGENT_PORT: 9001
-      # LOG_LEVEL: debug
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - /var/lib/docker/volumes:/var/lib/docker/volumes
@@ -48,28 +40,6 @@ services:
       - "traefik.http.services.portainer.loadbalancer.server.port=9000"
       - "traefik.http.routers.portainer.service=portainer"
       - "traefik.http.routers.portainer.tls=true"
-      # Edge
-      #- "traefik.http.routers.edge.rule=Host(`edge.yourdomain.com`)"
-      #- "traefik.http.routers.edge.entrypoints=web"
-      #- "traefik.http.services.edge.loadbalancer.server.port=8000"
-      #- "traefik.http.routers.edge.service=edge"
-  filebeat:
-    image: elastic/filebeat:7.17.3
-    environment:
-      - HN=${HOSTNAME}
-            #placement:
-              #constraints: [node.role == worker]
-    configs:
-      - source: filebeat.yml
-        target: /usr/share/filebeat/filebeat.yml
-    user: 0:0
-    networks:
-      - logging-net
-    volumes:
-      - /var/lib/docker/containers/:/var/lib/docker/containers/:RO
-      - /var/run/docker.sock:/var/run/docker.sock
-      - filebeat-data:/usr/share/filebeat/data/
-      - /var/log/:/var/log/:ro
   elasticsearch:
     image: elasticsearch:7.17.3
     environment:
@@ -78,9 +48,6 @@ services:
       - bootstrap.memory_lock=true
       - discovery.type=single-node
       - ES_JAVA_OPTS=-Xms256m -Xmx256m
-    deploy:
-            #placement:
-            #constraints: [node.role == worker]
     networks:
       - logging-net
     volumes:
@@ -102,53 +69,23 @@ services:
         - "traefik.http.routers.kibana.entrypoints=websecure"
         - "traefik.http.routers.kibana.tls=true"
         - traefik.http.services.kibana.loadbalancer.server.port=5601
-  logstash:
-    image: logstash:7.17.3
-    environment:
-      - 'path.config=/usr/share/logstash/conf/logstash.conf'
-      - 'xpack.monitoring.elasticsearch.url=elasticsearch'
-      - 'xpack.monitoring.enabled=false'
-      - 'xpack.monitoring.elasticsearch.username='
-      - 'xpack.monitoring.elasticsearch.password='
-      - 'TZ=Europe/London'
-    configs:
-      - source: logstash.conf
-        target: /usr/share/logstash/conf/logstash.conf
-    deploy:
-            #placement:
-            #constraints: [node.role == worker]
-    networks:
-      - logging-net
   traefik:
     image: traefik:v3.4
-
     networks:
-    # Connect to the 'traefik_proxy' overlay network for inter-container communication across nodes
       - traefik_proxy
-
     ports:
-        # Expose Traefik's entry points to the Swarm
-        # Swarm requires the long syntax for ports.
-      - target: 80 # Container port (Traefik web entry point)
-        published: 80 # Host port exposed on the nodes
-        protocol: tcp
-        # 'host' mode binds directly to the node's IP where the task runs.
-        # 'ingress' mode uses Swarm's Routing Mesh (load balances across nodes).
-        # Choose based on your load balancing strategy. 'host' is often simpler if using an external LB.
-        mode: ingress
-      - target: 443 # Container port ( Traefik websecure entry point)
-        published: 443 # Host port
+      - target: 80
+        published: 80
         protocol: tcp
         mode: ingress
-
+      - target: 443
+        published: 443
+        protocol: tcp
+        mode: ingress
     volumes:
-      # Mount the Docker socket for the Swarm provider
-      # This MUST be run from a manager node to access the Swarm API via the socket.
-      - /var/run/docker.sock:/var/run/docker.sock:ro   # Swarm API socket
+      - /var/run/docker.sock:/var/run/docker.sock:ro
       - /traefik/certs:/certs:ro
       - /traefik/docker/dynamic:/dynamic:ro
-
-    # Traefik Static configuration via command-line arguments
     command:
       # Metrics
       #- "--metrics.prometheus.entryPoint=websecure"
@@ -166,25 +103,17 @@ services:
 
       # Attach dynamic TLS file
       - "--providers.file.filename=/dynamic/tls.yaml"
-
-      # Providers
-
       # Enable the Docker Swarm provider (instead of Docker provider)
       - "--providers.swarm.endpoint=unix:///var/run/docker.sock"
-
       # Watch for Swarm service changes (requires socket access)
       - "--providers.swarm.watch=true"
-
       # Recommended: Don't expose services by default; require explicit labels
       - "--providers.swarm.exposedbydefault=false"
-
       # Specify the default network for Traefik to connect to services
       - "--providers.swarm.network=traefik_proxy"
-
       # API & Dashboard
       - "--api.dashboard=true" # Enable the dashboard
       - "--api.insecure=false" # Explicitly disable insecure API mod
-
       # Observability
       - "--log.level=INFO" # Set the Log Level e.g INFO, DEBUG
       - "--accesslog=true" # Enable Access Logs
@@ -194,12 +123,10 @@ services:
       mode: replicated
       replicas: 1
       placement:
-
       # Placement constraints restrict where Traefik tasks can run.
       # Running on manager nodes is common for accessing the Swarm API via the socket.
         constraints:
           - node.role == manager
-
       # Traefik Dynamic configuration via labels
       # In Swarm, labels on the service definition configure Traefik routing for that service.
       labels:
@@ -218,7 +145,7 @@ services:
 
         # Basic‑auth middleware
         # https://doc.traefik.io/traefik/setup/swarm/#create-the-traefik-dashboard-credentials
-        - "traefik.http.middlewares.dashboard-auth.basicauth.users=admin:$$apr1$$FG7rGLVV$$ocXtKR4xLd4HoivaiSkuu0"
+        - "traefik.http.middlewares.dashboard-auth.basicauth.users=cmartin:$$apr1$$X5YJ95iX$$IniCUw03dfe1n1CYJsCyK."
         - "traefik.http.routers.dashboard.middlewares=dashboard-auth@swarm"
 
         # Service hint
