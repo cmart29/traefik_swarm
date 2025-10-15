@@ -51,3 +51,7 @@ volumes:
   database_volume:
   gpg_volume:
   jwt_volume:
+
+networks:
+  traefik_proxy:
+    external: true
